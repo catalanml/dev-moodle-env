@@ -48,7 +48,7 @@ if (strpos($_SERVER['HTTP_HOST'], '.gitpod.io') !== false) {
     }
 }
 
-$CFG->dataroot  = '/var/www/moodledata';
+$CFG->dataroot  = '/var/www/moodle-docker/moodle_data'; // Adjusted for Nginx setup
 $CFG->admin     = 'admin';
 $CFG->directorypermissions = 0777;
 $CFG->smtphosts = 'mailpit:1025';
@@ -67,34 +67,20 @@ $CFG->pathtophp = '/usr/local/bin/php';
 
 $CFG->phpunit_dataroot  = '/var/www/phpunitdata';
 $CFG->phpunit_prefix = 't_';
-define('TEST_EXTERNAL_FILES_HTTP_URL', 'http://exttests:9000');
-define('TEST_EXTERNAL_FILES_HTTPS_URL', 'http://exttests:9000');
 
-$CFG->behat_wwwroot   = 'http://webserver';
+$CFG->behat_wwwroot   = 'http://nginx'; // Changed from webserver to nginx
 $CFG->behat_dataroot  = '/var/www/behatdata';
 $CFG->behat_prefix = 'b_';
 $CFG->behat_profiles = array(
     'default' => array(
-        'browser' => getenv('MOODLE_DOCKER_BROWSER'),
-        'wd_host' => 'http://selenium:4444/wd/hub',
+        // 'browser' and 'wd_host' removed as Selenium is no longer part of the default setup
+        // Users can add custom profiles if they wish to use Behat with a browser
     ),
 );
-$CFG->behat_faildump_path = '/var/www/behatfaildumps';
+$CFG->behat_faildump_path = '/var/www/behatfaildumps'; // This path needs to be accessible by Nginx now
 $CFG->behat_increasetimeout = getenv('MOODLE_DOCKER_TIMEOUT_FACTOR');
 
 define('PHPUNIT_LONGTEST', true);
-
-if (getenv('MOODLE_DOCKER_APP')) {
-    $appport = getenv('MOODLE_DOCKER_APP_PORT') ?: 8100;
-    $protocol = getenv('MOODLE_DOCKER_APP_PROTOCOL') ?: 'https';
-
-    $CFG->behat_ionic_wwwroot = "$protocol://moodleapp:$appport";
-    $CFG->behat_profiles['default']['capabilities'] = [
-        'extra_capabilities' => [
-            'chromeOptions' => ['args' => ['--ignore-certificate-errors', '--allow-running-insecure-content']],
-        ],
-    ];
-}
 
 if (getenv('MOODLE_DOCKER_PHPUNIT_EXTRAS')) {
     define('TEST_SEARCH_SOLR_HOSTNAME', 'solr');

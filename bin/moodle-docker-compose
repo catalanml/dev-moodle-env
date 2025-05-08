@@ -30,6 +30,11 @@ else
   dockercompose="docker-compose"
 fi
 dockercompose="${dockercompose} -f ${basedir}/base.yml"
+# Ensure Nginx configuration is included by default
+# We will create/modify base.yml or a new nginx.yml to use Nginx instead of Apache
+# For now, let's assume base.yml will be adapted or a new nginx.yml will be added.
+# dockercompose="${dockercompose} -f ${basedir}/nginx.yml" # This line will be activated/adjusted later
+
 dockercompose="${dockercompose} -f ${basedir}/service.mail.yml"
 
 # PHP Version.
@@ -62,116 +67,6 @@ then
     then
         dockercompose="${dockercompose} -f ${filename}"
     fi
-fi
-
-# Guess mobile app runtime
-if [ -z "$MOODLE_DOCKER_APP_RUNTIME" ];
-then
-    if [[ ! -z "$MOODLE_DOCKER_APP_PATH" ]];
-    then
-        appversion="$(cat $MOODLE_DOCKER_APP_PATH/package.json | sed -n -E 's/\s*"version": "([0-9]+\.[0-9]+\.[0-9]+)(.*)?",/\1/p')"
-    elif [[ ! -z "$MOODLE_DOCKER_APP_VERSION" ]];
-    then
-        appversion=$MOODLE_DOCKER_APP_VERSION
-    fi
-
-    if [[ ! -z $appversion ]];
-    then
-        if [[ ! -z "$(echo $appversion | sed -n -E 's/([0-9]+\.[0-9]+\.[0-9]+)/\1/p')" ]];
-        then
-            appmajorversion="$(echo $appversion | sed -n -E 's/([0-9]+)\.[0-9]+\.[0-9]+/\1/p')"
-            appminorversion="$(echo $appversion | sed -n -E 's/[0-9]+\.([0-9]+)\.[0-9]+/\1/p')"
-
-            if (( $appmajorversion > 4 || $appminorversion > 3));
-            then
-                export MOODLE_DOCKER_APP_RUNTIME="ionic7"
-            else
-                export MOODLE_DOCKER_APP_RUNTIME="ionic5"
-            fi
-        else
-            export MOODLE_DOCKER_APP_RUNTIME="ionic7"
-        fi
-    fi
-fi
-
-# Guess mobile app node version (only for local app development)
-if [[ -z "$MOODLE_DOCKER_APP_NODE_VERSION" ]]  && [[ ! -z "$MOODLE_DOCKER_APP_PATH" ]];
-then
-    appnodeversion="$(cat $MOODLE_DOCKER_APP_PATH/.nvmrc | sed -E "s/v(([0-9]+\.?)+)/\1/" || true)"
-
-    export MOODLE_DOCKER_APP_NODE_VERSION="$appnodeversion"
-fi
-
-# Guess mobile app port (only when using Docker app images)
-if [[ -z "$MOODLE_DOCKER_APP_PORT" ]] && [[ ! -z "$MOODLE_DOCKER_APP_VERSION" ]];
-then
-    if [[ "$MOODLE_DOCKER_APP_RUNTIME" = "ionic5" ]];
-    then
-        export MOODLE_DOCKER_APP_PORT="80"
-    else
-        export MOODLE_DOCKER_APP_PORT="443"
-    fi
-fi
-
-# Guess mobile app protocol
-if [[ -z "$MOODLE_DOCKER_APP_PROTOCOL" ]];
-then
-    if [[ "$MOODLE_DOCKER_APP_RUNTIME" = "ionic5" ]];
-    then
-        export MOODLE_DOCKER_APP_PROTOCOL="http"
-    else
-        export MOODLE_DOCKER_APP_PROTOCOL="https"
-    fi
-fi
-
-# Selenium browser
-browserparts=(${MOODLE_DOCKER_BROWSER//:/ })
-export MOODLE_DOCKER_BROWSER_NAME=${browserparts[0]}
-export MOODLE_DOCKER_BROWSER_TAG=${browserparts[1]}
-
-if [[ -z "$MOODLE_DOCKER_BROWSER_NAME" ]];
-then
-    MOODLE_DOCKER_BROWSER_NAME=firefox
-fi
-
-if [[ -z "$MOODLE_DOCKER_BROWSER_TAG" ]];
-then
-    MOODLE_DOCKER_BROWSER_TAG=4
-fi
-
-# Mobile app for development
-if [[ "$MOODLE_DOCKER_BROWSER_NAME" == "chrome" ]];
-then
-    if [[ ! -z "$MOODLE_DOCKER_APP_PATH" ]];
-    then
-        dockercompose="${dockercompose} -f ${basedir}/moodle-app-dev.yml"
-    elif [[ ! -z "$MOODLE_DOCKER_APP_VERSION" ]];
-    then
-        # Mobile app using a docker image
-        dockercompose="${dockercompose} -f ${basedir}/moodle-app.yml"
-    fi
-fi
-
-if [[ "$MOODLE_DOCKER_BROWSER_NAME" != "firefox" ]];
-then
-    dockercompose="${dockercompose} -f ${basedir}/selenium.${MOODLE_DOCKER_BROWSER_NAME}.yml"
-fi
-
-# Selenium VNC port
-export MOODLE_DOCKER_SELENIUM_SUFFIX=""
-if [[ $MOODLE_DOCKER_SELENIUM_VNC_PORT == *":"* ]] || [[ $MOODLE_DOCKER_SELENIUM_VNC_PORT -gt 0 ]]
-then
-    if [[ $(echo $MOODLE_DOCKER_BROWSER_TAG | sed 's/[^0-9].*//g') -lt 4 ]]
-    then
-        export MOODLE_DOCKER_SELENIUM_SUFFIX="-debug"
-    fi
-
-    # If no bind ip has been configured (bind_ip:port), default to 127.0.0.1
-    if [[ ! $MOODLE_DOCKER_SELENIUM_VNC_PORT == *":"* ]]
-    then
-        MOODLE_DOCKER_SELENIUM_VNC_PORT=127.0.0.1:$MOODLE_DOCKER_SELENIUM_VNC_PORT
-    fi
-    dockercompose="${dockercompose} -f ${basedir}/selenium.debug.yml"
 fi
 
 # External services
@@ -224,7 +119,7 @@ then
     dockercompose="${dockercompose} -f ${basedir}/webserver.port.yml"
 fi
 
-# Behat test timeout factor
+# Behat test timeout factor - Retaining this as Behat might still be used without Selenium for API/CLI tests
 export MOODLE_DOCKER_TIMEOUT_FACTOR=${MOODLE_DOCKER_TIMEOUT_FACTOR:-1}
 
 # Mac OS Compatbility

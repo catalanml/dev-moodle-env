@@ -1,25 +1,33 @@
 services:
-  webserver:
-    image: "moodlehq/moodle-php-apache:${MOODLE_DOCKER_PHP_VERSION}"
+  webserver: # This service is now PHP-FPM
+    image: "moodlehq/moodle-php-fpm:${MOODLE_DOCKER_PHP_VERSION}"
     depends_on:
       - db
     volumes:
-      - "${MOODLE_DOCKER_WWWROOT}:/var/www/html"
-      - "${ASSETDIR}/web/apache2_faildumps.conf:/etc/apache2/conf-enabled/moodle-faildump.conf"
+      - "${MOODLE_DOCKER_WWWROOT}:/var/www/html"  # Moodle code ($CFG->dirroot will be /var/www/html)
+      # MOODLE_DOCKER_DATAROOT must be set by the user.
+      # This path is where PHP will access moodledata directly.
+      - "${MOODLE_DOCKER_DATAROOT}:/var/www/moodle-docker/moodle_data"
     environment:
       MOODLE_DOCKER_RUNNING: 1
       MOODLE_DOCKER_DBNAME: moodle
       MOODLE_DOCKER_DBUSER: moodle
       MOODLE_DOCKER_DBPASS: "m@0dl3ing"
-      MOODLE_DOCKER_BROWSER: firefox
-      MOODLE_DOCKER_WEB_HOST: "${MOODLE_DOCKER_WEB_HOST}"
+      MOODLE_DOCKER_WEB_HOST: "${MOODLE_DOCKER_WEB_HOST}" # Used for $CFG->wwwroot
+      # MOODLE_DOCKER_TIMEOUT_FACTOR is kept as it might be used by Behat CLI tests
       MOODLE_DOCKER_TIMEOUT_FACTOR: "${MOODLE_DOCKER_TIMEOUT_FACTOR}"
-  exttests:
-    image: moodlehq/moodle-exttests
+
+  nginx:
+    image: "nginx:latest"
+    depends_on:
+      - webserver # Depends on the PHP-FPM service
     volumes:
-      - "${ASSETDIR}/exttests/apache2_ports.conf:/etc/apache2/ports.conf"
-      - "${ASSETDIR}/exttests/apache2.conf:/etc/apache2/sites-enabled/000-default.conf"
-  selenium:
-    image: "selenium/standalone-firefox${MOODLE_DOCKER_SELENIUM_SUFFIX:-}:${MOODLE_DOCKER_BROWSER_TAG}"
-    volumes:
-      - "${MOODLE_DOCKER_WWWROOT}:/var/www/html:ro"
+      # Nginx root directive points to /var/www/moodle-docker/moodle_html
+      - "${MOODLE_DOCKER_WWWROOT}:/var/www/moodle-docker/moodle_html:ro"
+      # Nginx alias for /dataroot/ points to /var/www/moodle-docker/moodle_data
+      - "${MOODLE_DOCKER_DATAROOT}:/var/www/moodle-docker/moodle_data:ro"
+      - "${ASSETDIR}/nginx/moodle.conf:/etc/nginx/conf.d/default.conf:ro"
+      # Note: Port mapping will be handled by webserver.port.yml
+      # Note: Behat faildump volume will be handled by behat-faildump.yml
+    environment:
+      MOODLE_DOCKER_RUNNING: 1 # May not be strictly needed by Nginx but consistent

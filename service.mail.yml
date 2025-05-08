@@ -1,10 +1,10 @@
 services:
-  webserver:
-    volumes:
-      - "${ASSETDIR}/web/apache2_mailpit.conf:/etc/apache2/conf-enabled/apache2_mailpit.conf"
-    depends_on:
+  webserver: # This is PHP-FPM
+    depends_on: # PHP-FPM (Moodle) needs mailpit to send emails
       - mailpit
   mailpit:
     image: axllent/mailpit:v1.10
     environment:
-      MP_WEBROOT: /_/mail/
+      MP_WEBROOT: / # Nginx handles the /_/mail/ path prefix in its proxy configuration
+    # Ports are not exposed here by default; Nginx proxies to mailpit.
+    # The Moodle config (config.docker-template.php) uses 'mailpit:1025'.

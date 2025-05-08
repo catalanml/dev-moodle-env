@@ -1,6 +1,11 @@
 services:
-  webserver:
+  webserver: # This is PHP-FPM, where Behat runs and writes faildumps
     volumes:
       - "${MOODLE_DOCKER_BEHAT_FAILDUMP}:/var/www/behatfaildumps"
     environment:
         MOODLE_DOCKER_BEHAT_FAILDUMP: "${MOODLE_DOCKER_BEHAT_FAILDUMP}"
+
+  nginx:
+    volumes:
+      # Mount the same host directory to the path Nginx expects for serving faildumps
+      - "${MOODLE_DOCKER_BEHAT_FAILDUMP}:/var/www/faildumps:ro"
