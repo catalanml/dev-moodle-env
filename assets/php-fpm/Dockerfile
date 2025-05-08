@@ -1,4 +1,4 @@
-ARG PHP_VERSION=8.2
+ARG PHP_VERSION=8.1
 FROM php:${PHP_VERSION}-fpm
 
 # Install system dependencies for Moodle PHP extensions
@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxml2-dev \
     libicu-dev \
     libxslt1-dev \
-    libpq-dev \
+    default-libmysqlclient-dev \
     libonig-dev \
     libsodium-dev \
     git \
@@ -30,8 +30,8 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
     intl \
     opcache \
     pdo \
-    pdo_pgsql \
-    pgsql \
+    pdo_mysql \
+    mysqli \
     soap \
     zip \
     xsl \
