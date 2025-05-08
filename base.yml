@@ -1,10 +1,15 @@
 services:
   webserver: # This service is now PHP-FPM
-    image: "moodlehq/moodle-php-fpm:${MOODLE_DOCKER_PHP_VERSION}"
+    build:
+      context: ./assets/php-fpm # Path to the directory containing your Dockerfile
+      args:
+        PHP_VERSION: ${MOODLE_DOCKER_PHP_VERSION:-8.2} # Default to 8.2 if not set
+    # image: "php:${MOODLE_DOCKER_PHP_VERSION}-fpm" # This line is replaced by the build context above
+    # NOTE: The Dockerfile at ./assets/php-fpm/Dockerfile should handle PHP extensions.
     depends_on:
       - db
     volumes:
-      - "${MOODLE_DOCKER_WWWROOT}:/var/www/html"  # Moodle code ($CFG->dirroot will be /var/www/html)
+      - "${MOODLE_DOCKER_WWWROOT}:/var/www/moodle-docker/moodle_html"  # Moodle code, path matches Nginx root
       # MOODLE_DOCKER_DATAROOT must be set by the user.
       # This path is where PHP will access moodledata directly.
       - "${MOODLE_DOCKER_DATAROOT}:/var/www/moodle-docker/moodle_data"
@@ -14,6 +19,7 @@ services:
       MOODLE_DOCKER_DBUSER: moodle
       MOODLE_DOCKER_DBPASS: "m@0dl3ing"
       MOODLE_DOCKER_WEB_HOST: "${MOODLE_DOCKER_WEB_HOST}" # Used for $CFG->wwwroot
+      MOODLE_DOCKER_WEB_PORT: "${MOODLE_DOCKER_WEB_PORT}" # Add this line
       # MOODLE_DOCKER_TIMEOUT_FACTOR is kept as it might be used by Behat CLI tests
       MOODLE_DOCKER_TIMEOUT_FACTOR: "${MOODLE_DOCKER_TIMEOUT_FACTOR}"
 
@@ -21,6 +27,7 @@ services:
     image: "nginx:latest"
     depends_on:
       - webserver # Depends on the PHP-FPM service
+      - mailpit   # Depends on the Mailpit service for proxying
     volumes:
       # Nginx root directive points to /var/www/moodle-docker/moodle_html
       - "${MOODLE_DOCKER_WWWROOT}:/var/www/moodle-docker/moodle_html:ro"

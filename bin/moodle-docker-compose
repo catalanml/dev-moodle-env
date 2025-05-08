@@ -21,38 +21,38 @@ fi
 
 export ASSETDIR="${basedir}/assets"
 
-# Test if we have docker compose v2, and keep quiet if we don't.
-ver=$(docker compose version > /dev/null 2>&1 && docker compose version --short) || true
-if [[ $ver =~ ^v?2 ]]; then
+# Determine which docker compose command to use
+if docker compose version > /dev/null 2>&1; then
+  # 'docker compose' (v2) is available
   dockercompose="docker compose"
-else
-  echo 'Compose v2 is not available in Docker CLI, falling back to use docker-compose script'
+elif docker-compose version > /dev/null 2>&1; then
+  # 'docker compose' (v2) is not available, but 'docker-compose' (v1) is
+  echo "INFO: 'docker compose' (v2) command failed or not found. Falling back to 'docker-compose' (v1)."
   dockercompose="docker-compose"
+else
+  # Neither is available
+  echo "ERROR: Neither 'docker compose' (v2) nor 'docker-compose' (v1) could be found or executed successfully."
+  echo "Please ensure Docker and Docker Compose are installed and correctly configured in your PATH."
+  exit 1
 fi
-dockercompose="${dockercompose} -f ${basedir}/base.yml"
-# Ensure Nginx configuration is included by default
-# We will create/modify base.yml or a new nginx.yml to use Nginx instead of Apache
-# For now, let's assume base.yml will be adapted or a new nginx.yml will be added.
-# dockercompose="${dockercompose} -f ${basedir}/nginx.yml" # This line will be activated/adjusted later
 
-dockercompose="${dockercompose} -f ${basedir}/service.mail.yml"
+dockercompose_files="-f ${basedir}/base.yml"
+dockercompose_files="${dockercompose_files} -f ${basedir}/service.mail.yml"
 
 # PHP Version.
 export MOODLE_DOCKER_PHP_VERSION=${MOODLE_DOCKER_PHP_VERSION:-8.2}
 
 # Database flavour.
-dockercompose="${dockercompose} -f ${basedir}/db.${MOODLE_DOCKER_DB}.yml"
+dockercompose_files="${dockercompose_files} -f ${basedir}/db.${MOODLE_DOCKER_DB}.yml"
 
 # Add support for version specific database settings.
 if [ ! -z "$MOODLE_DOCKER_DB_VERSION" ];
 then
     filename="${basedir}/db.${MOODLE_DOCKER_DB}.${MOODLE_DOCKER_DB_VERSION}.yml"
     if [ -f $filename ]; then
-        dockercompose="${dockercompose} -f ${filename}"
+        dockercompose_files="${dockercompose_files} -f ${filename}"
     fi
 fi
-
-# Support PHP version overrides for DB not available any more.
 
 # Expose DB port if requested.
 if [[ $MOODLE_DOCKER_DB_PORT == *":"* ]] || [[ $MOODLE_DOCKER_DB_PORT -gt 0 ]]
@@ -65,32 +65,32 @@ then
     filename="${basedir}/db.${MOODLE_DOCKER_DB}.port.yml"
     if [ -f $filename ];
     then
-        dockercompose="${dockercompose} -f ${filename}"
+        dockercompose_files="${dockercompose_files} -f ${filename}"
     fi
 fi
 
 # External services
 if [[ ! -z "$MOODLE_DOCKER_PHPUNIT_EXTERNAL_SERVICES" ]];
 then
-    dockercompose="${dockercompose} -f ${basedir}/phpunit-external-services.yml"
+    dockercompose_files="${dockercompose_files} -f ${basedir}/phpunit-external-services.yml"
 fi
 
 # BBB Mock
 if [[ ! -z "$MOODLE_DOCKER_BBB_MOCK" ]];
 then
-    dockercompose="${dockercompose} -f ${basedir}/bbb-mock.yml"
+    dockercompose_files="${dockercompose_files} -f ${basedir}/bbb-mock.yml"
 fi
 
 # Matrix Mock
 if [[ ! -z "$MOODLE_DOCKER_MATRIX_MOCK" ]];
 then
-    dockercompose="${dockercompose} -f ${basedir}/matrix-mock.yml"
+    dockercompose_files="${dockercompose_files} -f ${basedir}/matrix-mock.yml"
 fi
 
 # Machine Learning backend
 if [[ ! -z "$MOODLE_DOCKER_MLBACKEND" ]];
 then
-    dockercompose="${dockercompose} -f ${basedir}/mlbackend.yml"
+    dockercompose_files="${dockercompose_files} -f ${basedir}/mlbackend.yml"
 fi
 
 #  Faildump directory
@@ -101,7 +101,7 @@ then
         echo 'Error: $MOODLE_DOCKER_BEHAT_FAILDUMP is not an existing directory'
         exit 1
     fi
-    dockercompose="${dockercompose} -f ${basedir}/behat-faildump.yml"
+    dockercompose_files="${dockercompose_files} -f ${basedir}/behat-faildump.yml"
 fi
 
 # Webserver host
@@ -116,7 +116,7 @@ then
     then
         MOODLE_DOCKER_WEB_PORT=127.0.0.1:$MOODLE_DOCKER_WEB_PORT
     fi
-    dockercompose="${dockercompose} -f ${basedir}/webserver.port.yml"
+    dockercompose_files="${dockercompose_files} -f ${basedir}/webserver.port.yml"
 fi
 
 # Behat test timeout factor - Retaining this as Behat might still be used without Selenium for API/CLI tests
@@ -125,7 +125,7 @@ export MOODLE_DOCKER_TIMEOUT_FACTOR=${MOODLE_DOCKER_TIMEOUT_FACTOR:-1}
 # Mac OS Compatbility
 if [[ "$(uname)" == "Darwin" ]]; then
     # Support https://docs.docker.com/docker-for-mac/osxfs-caching/
-    dockercompose="${dockercompose} -f ${basedir}/volumes-cached.yml"
+    dockercompose_files="${dockercompose_files} -f ${basedir}/volumes-cached.yml"
 fi
 
 # Apply local customisations if a local.yml is found.
@@ -134,7 +134,16 @@ localfile="${basedir}/local.yml"
 if [ -f "${localfile}" ]
 then
   echo "Including local options from ${localfile}"
-  dockercompose="${dockercompose} -f ${localfile}"
+  dockercompose_files="${dockercompose_files} -f ${localfile}"
 fi
 
-$dockercompose "$@"
+# Construct the full command
+# Note: $dockercompose is "docker compose" or "docker-compose"
+# $dockercompose_files contains all the "-f /path/to/file.yml" arguments
+# "$@" contains the command like "up -d"
+full_command="$dockercompose $dockercompose_files "$@""
+
+# For debugging, you can uncomment the next line to see the exact command being run
+# echo "Executing: $full_command"
+
+eval "$full_command"
